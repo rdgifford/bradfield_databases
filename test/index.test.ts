@@ -1,10 +1,9 @@
-import { execute, PlanNode } from '../src';
+import { execute, files, FileScan, Selection, Projection } from '../src/index';
 
 
 describe('execute', () => {
   it('handles simple FILESCAN', () => {
-    const queryPlan = new PlanNode("FILESCAN", ["movies"], null)
-    expect(execute(queryPlan)).toEqual([
+    expect(execute(new FileScan(["movies"], files, null))).toEqual([
       ["1", "The 400 Blows"],
       ["5000", "La Haine"],
       ["7500", "The Godfather"],
@@ -12,11 +11,18 @@ describe('execute', () => {
     ]);
   });
 
-  it.only('handles a nested plan node (FILESCAN and SELECT)', () => {
-    const fileScanNode = new PlanNode("FILESCAN", ["movies"], null)
-    const queryPlan = new PlanNode("SELECTION", ["id", "EQUALS", "5000"], fileScanNode)
-    expect(execute(queryPlan)).toEqual([
+  it('handles simple FILESCAN and SELECTION', () => {
+    const fileScan = new FileScan(["movies"], files, null)
+    expect(execute(new Selection(["movie_id", "EQUALS", "5000"], fileScan))).toEqual([
       ["5000", "La Haine"],
+    ]);
+  });
+
+  it('handles simple FILESCAN and SELECTION and PROJECTION', () => {
+    const fileScan = new FileScan(["movies"], files, null)
+    const selection = new Selection(["movie_id", "EQUALS", "5000"], fileScan)
+    expect(execute(new Projection(["movie_id"], selection))).toEqual([
+      ["5000"],
     ]);
   });
 });

@@ -1,4 +1,4 @@
-const files = {
+export const files = {
     movies: [
         ["1", "The 400 Blows"],
         ["5000", "La Haine"],
@@ -8,59 +8,85 @@ const files = {
     books: [],
 }
 
-const nodeMap = {
-    "FILESCAN": ([fileName]: [string]) => {
-        // @ts-ignore
-        if(!files[fileName]) {
-            throw new Error('Table does not exist')
-        }
-        // @ts-ignore
-        return files[fileName][Symbol.iterator]()
-    },
-    "SELECTION": () => ({
-        // @ts-ignore
-        next: (...args) => {
-            console.log('SELECTION',args)
-            return { done: true }
-        }
-    }),
-    "PROJECTION": () => ({
-        next: () => {
-            return {done: true};
-        }
-    })
-}
-
-type NodeType = "FILESCAN" | "SELECTION" | "PROJECTION"
-export class PlanNode implements Iterable<any> {
-    nodeType: NodeType;
-    init: Array<string>
-    nextPlanNode: PlanNode | null;
-    constructor(nodeType: NodeType, init: Array<string>, nextPlanNode: PlanNode | null) {
-        this.nodeType = nodeType;
+type Files = { [key: string]: string[][] }
+// type NodeType = "FILESCAN" | "SELECTION" | "PROJECTION"
+export class FileScan implements Iterator<string[][]> {
+    init: [string];
+    nextNode: any;
+    files: Files;
+    index: 0;
+    fileName: keyof Files;
+    constructor(init: [string], files: any, nextNode: any) {
         this.init = init;
-        this.nextPlanNode = nextPlanNode;
+        this.nextNode = nextNode;
+        this.files = files;
+        this.index = 0;
+        this.fileName = init[0];
     }
-  
-    [Symbol.iterator](): Iterator<any> {
-        // @ts-ignore
-        if(this.nextPlanNode !== null) {
-            return this.nextPlanNode[Symbol.iterator]()
-
+    next(): IteratorResult<string[][], any> {
+        if(this.index < this.files[this.fileName].length) {
+            // @ts-ignore
+            return { done: false, value: this.files[this.fileName][this.index++] }
         }
-        // @ts-ignore
-        return nodeMap[this.nodeType](this.init)
-    }
-
-    close() {
+        return { done: true, value: undefined }
     }
 }
 
-export function execute(queryPlan: Iterable<any>): any {
-    console.log("Running query executor...");
-    const records = []
-    for(const record of queryPlan) {
-        records.push(record)
+export class Selection implements Iterator<string[][]> {
+    init: string[];
+    nextNode: any;
+    constructor(init: string[], nextNode: any) {
+        this.init = init;
+        this.nextNode = nextNode;
     }
-    return records
+    next(): IteratorResult<string[][], any> {
+        const { done, value } = this.nextNode.next() 
+        if(this.nextNode !== null && !done) {
+            // do actual stuff -- this needs to be more complicated to actually handle operations
+            // TODO fiddly parsing shit
+            if(value[0] === "5000") {
+                return { done: false, value }
+            }
+            
+            return { done: false, value: [] }
+        }
+        return { done: true, value: undefined }
+    }
+}
+
+export class Projection implements Iterator<string[][]> {
+    init: string[];
+    nextNode: any;
+    constructor(init: string[], nextNode: any) {
+        this.init = init;
+        this.nextNode = nextNode;
+    }
+    next(): IteratorResult<string[][], any> {
+        const { done, value } = this.nextNode.next() 
+
+        if(this.nextNode !== null && !done) {
+            // do actual stuff -- this needs to be more complicated to actually handle operations
+            // TODO fiddly schema registration and parsing shit
+            if (value.length > 0) {
+                return { done: false, value: [value[0]] }
+            }
+
+            return { done: false, value: [] }
+        }
+        return { done: true, value: undefined }
+    }
+}
+
+export function execute(queryPlan: Iterator<string[][]>): any {
+    console.log("Running query executor...");
+    let records: string[][] = [];
+    let next = queryPlan.next();
+    while(next && !next.done) {
+        if (next.value.length > 0) {
+            // @ts-ignore
+            records.push(next.value);
+        }
+        next = queryPlan.next();
+    }
+    return records;
 }
